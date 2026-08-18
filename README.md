@@ -218,6 +218,6 @@ To protect environments from similar multi-tiered infrastructure compromise chai
 *   **Enforce Strict Patch Policies:** Migrate out-of-date platforms immediately. Legacy platforms such as WordPress Core 4.3.1 lack critical security components against mod-rewrite manipulations and credential enumeration bypass exploits.
 *   **Harden SUID File Paths:** Audit system binaries regularly. Standard utilities that support file reads, text modifications, or shell escapes (such as editor paths or network monitoring modules like `nmap`) must never be granted permanent SUID privileges.
 
-*   View my complete [Mr. Robot CTF Walkthrough here](mr-robot-walkthrough.md).
-
 *   **Enforce Strong Cryptographic Modernization:** Transition completely away from legacy MD5 hashing architectures. Implement modern salted string configurations such as `bcrypt` or `Argon2` to eliminate quick pre-computed lookup tables.
+
+*     View my complete [Mr. Robot CTF Walkthrough here](mr-robot-walkthrough.md).
