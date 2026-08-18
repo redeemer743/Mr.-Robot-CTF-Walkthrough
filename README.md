@@ -73,6 +73,7 @@ The automated multicall vector successfully cracked the authentication barrier:
 ### 🖼️ Phase 2 Screenshots
 ![Hydra Username Bruteforce](img/phase2_hydra.png)
 ![WPScan Password Multi-call Crack](img/phase2_wpscan.png)
+![WPScan Password Multi-call Crack](img/phase2_wpscan2.png)
 
 ---
 
