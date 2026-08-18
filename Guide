@@ -18,7 +18,7 @@ The core learning objectives demonstrated include:
 ## 🔍 Phase 1: Reconnaissance & Dictionary Optimization
 
 ### 1.1 Web Index Analysis
-The initial interaction involves mapping out open pathways on the web application server (`192.168.0.28.28`). Navigating manually to the `robots.txt` file (a plain text file used to instruct search engines which paths they can or cannot index) exposes sensitive files intentionally hidden by the developer.
+The initial interaction involves mapping out open pathways on the web application server (`192.168.0.28`). Navigating manually to the `robots.txt` file (a plain text file used to instruct search engines which paths they can or cannot index) exposes sensitive files intentionally hidden by the developer.
 
 ```http
 User-agent: *
@@ -71,7 +71,7 @@ We use `hydra`, a parallelized login cracker, to automate checking the login for
 *   If a username does exist but the password is wrong: It outputs **"The password you entered... is incorrect"**.
 
 ```bash
-hydra -L ./clean.txt -p password_doesnt_matter 192.168.0.28.28 http-form-post '/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:Invalid username'
+hydra -L ./clean.txt -p password_doesnt_matter 192.168.0.28 http-form-post '/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:Invalid username'
 ```
 
 **Process Mechanics:**
@@ -89,11 +89,11 @@ This command exposes the valid user account profile: **`elliot`**.
 With the valid username isolated, the attack turns to resolving the password parameters using `wpscan`, a black-box vulnerability scanner customized specifically for WordPress codebases.
 
 ```bash
-wpscan --url http://192.168.0.28.28/ --usernames elliot --passwords clean.txt
+wpscan --url http://192.168.0.28/ --usernames elliot --passwords clean.txt
 ```
 
 **Process Mechanics:**
-*   `--url http://192.168.0.28.28/`: Defines the target destination home directory path.
+*   `--url http://192.168.0.28/`: Defines the target destination home directory path.
 *   `--usernames elliot`: Skips automated scanning loops and binds the password attack entirely to the single valid account profile discovered in the previous step.
 *   `--passwords clean.txt`: Feeds our unique 11,452-word dictionary into the password entry loop.
 *   **The Underlying Multicall Vector:** Behind the scenes, WPScan detects that the target web architecture supports XML-RPC (`/xmlrpc.php`). Instead of sending 11,452 separate single web requests (which causes high server overhead and triggers network bottlenecks), WPScan bundles dozens of credential attempts into individual XML-RPC multicall payload blocks. This optimizes the local network execution speed to resolve the valid credential string within seconds:
