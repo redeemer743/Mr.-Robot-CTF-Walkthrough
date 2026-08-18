@@ -220,4 +220,5 @@ To protect environments from similar multi-tiered infrastructure compromise chai
 
 *   **Enforce Strong Cryptographic Modernization:** Transition completely away from legacy MD5 hashing architectures. Implement modern salted string configurations such as `bcrypt` or `Argon2` to eliminate quick pre-computed lookup tables.
 
-*      View my complete [Mr. Robot CTF Walkthrough here]([mr](https://github.com/redeemer743/Mr.-Robot-CTF-Walkthrough/blob/main/mr-robot-walkthrough.md)-robot-walkthrough.md)
+View my complete [Mr. Robot CTF Walkthrough here](mr-robot-walkthrough.md).
+
