@@ -104,6 +104,7 @@ wpscan --url http://192.168.0.28/ --usernames elliot --passwords clean.txt
 ### 🖼️ Phase 2 Screenshots
 ![Hydra Username Bruteforce](img/phase2_hydra.png)
 ![WPScan Password Multi-call Crack](img/phase2_wpscan.png)
+![WPScan Password Multi-call Crack](img/phase2_wpscan2.png)
 
 ---
 
@@ -147,6 +148,14 @@ The browser page will look like it is hanging or loading indefinitely. This is n
 ---
 ### 🖼️ Phase 3 Screenshots
 ![WordPress 404.php Code Injection](img/phase3_editor.png)
+![WordPress 404.php Code Injection](img/phase3_editor2.png)
+![WordPress 404.php Code Injection](img/phase3_editor3.png)
+![WordPress 404.php Code Injection](img/phase3_editor4.png)
+![WordPress 404.php Code Injection](img/phase3_editor5.png)
+![WordPress 404.php Code Injection](img/phase3_editor6.png)
+![WordPress 404.php Code Injection](img/phase3_editor7.png)
+![WordPress 404.php Code Injection](img/phase3_editor8.png)
+![WordPress 404.php Code Injection](img/phase3_editor9.png)
 ![Netcat Shell Capture](img/phase3_shell.png)
 
 ---
