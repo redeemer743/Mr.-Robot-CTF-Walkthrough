@@ -104,6 +104,14 @@ Navigating a web browser directly to the direct theme path triggered the updated
 ---
 ### 🖼️ Phase 3 Screenshots
 ![WordPress 404.php Code Injection](img/phase3_editor.png)
+![WordPress 404.php Code Injection](img/phase3_editor2.png)
+![WordPress 404.php Code Injection](img/phase3_editor3.png)
+![WordPress 404.php Code Injection](img/phase3_editor4.png)
+![WordPress 404.php Code Injection](img/phase3_editor5.png)
+![WordPress 404.php Code Injection](img/phase3_editor6.png)
+![WordPress 404.php Code Injection](img/phase3_editor7.png)
+![WordPress 404.php Code Injection](img/phase3_editor8.png)
+![WordPress 404.php Code Injection](img/phase3_editor9.png)
 ![Netcat Shell Capture](img/phase3_shell.png)
 
 ---
